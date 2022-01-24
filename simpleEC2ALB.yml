@@ -6,6 +6,7 @@ Parameters:
     KeyName:
         Description: The EC2 Key Pair to allow SSH access to the instance
         Type: 'AWS::EC2::KeyPair::KeyName'
+        Default: CloudFormation
         ConstraintDescription: must be the name of an existing EC2 KeyPair.
     
     InstanceTypeParameter:
@@ -33,6 +34,7 @@ Parameters:
     VpcId:
         Description: Specify the VPC (**Make Sure to Match the CIDR of the VPC and Subnets)
         Type: AWS::EC2::VPC::Id
+        Default: vpc-04e26e2e01d2f3c0b
         
     PublicSubnet1:
         Description: Select a Public Subnet
@@ -62,6 +64,7 @@ Parameters:
         Description: Specify the name of the Application
         Type: String
         AllowedPattern: "[A-Za-z0-9]+"
+        Default: Apache
         ConstraintDescription: must start with Alphabet & Can be AlphaNumeric
         
     Environment:
