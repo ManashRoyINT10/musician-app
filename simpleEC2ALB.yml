@@ -161,7 +161,7 @@ Resources:
                 - !Ref EC2IntanceSG
             KeyName: !Ref KeyName
             ImageId: ami-0851b76e8b1bce90b
-            SubnetId: subnet-0b1856771a3c2368d
+            SubnetId: !Ref PublicSubnet1
             Tags:
                 - Key: Name
                   Value: Cloud Formation
@@ -175,6 +175,8 @@ Resources:
                   sudo apt install apache2 -y
                   sudo ufw allow in "Apache Full"
                   sudo systemctl restart apache2
+                  sudo apt install nodejs -y
+                  sudo apt install npm -y
            
 Outputs:
     AppELBDNS:
