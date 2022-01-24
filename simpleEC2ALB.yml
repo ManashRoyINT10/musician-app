@@ -180,6 +180,8 @@ Resources:
                   sudo systemctl restart apache2
                   sudo apt install nodejs -y
                   sudo apt install npm -y
+                  sudo apt install git -y
+                  git clone 
            
 Outputs:
     AppELBDNS:
