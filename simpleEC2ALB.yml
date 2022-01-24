@@ -1,0 +1,182 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: EC2 Instance with Apache Installed and ALB Integrated
+
+Parameters:
+    KeyName:
+        Description: The EC2 Key Pair to allow SSH access to the instance
+        Type: 'AWS::EC2::KeyPair::KeyName'
+        ConstraintDescription: must be the name of an existing EC2 KeyPair.
+    
+    InstanceTypeParameter:
+        Description: Specify the EC2 Instance Type
+        Type: String
+        Default: t2.micro
+        AllowedValues:
+            - t2.micro
+            - m1.small
+            - m1.large
+            - t2.small
+            - t2.large
+            - t2.medium
+            - t2.nano
+            - t2.xlarge
+            - t3.nano
+            - t3.micro
+            - t3.small
+            - t3.medium
+            - t3.large
+            - t3.xlarge
+            - t3.2xlarge
+        Description: Choose the Instance Type
+        
+    VpcId:
+        Description: Specify the VPC (**Make Sure to Match the CIDR of the VPC and Subnets)
+        Type: AWS::EC2::VPC::Id
+        
+    PublicSubnet1:
+        Description: Select a Public Subnet
+        Type: String
+        Default: subnet-02017e713fa5175f4
+        
+    PublicSubnet2:
+        Description: Select a Public Subnet
+        Type: String
+        Default: subnet-066d9ae80acead17f
+        
+    PublicSubnet3:
+        Description: Select a Public Subnet
+        Type: String
+        Default: subnet-0b1856771a3c2368d
+        
+    SSHLocation:
+        Description: The IP address range that can be used to SSH to the EC2 instances
+        Type: String
+        MinLength: 9
+        MaxLength: 18
+        Default: 0.0.0.0/0
+        AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+        ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+        
+    Application:
+        Description: Specify the name of the Application
+        Type: String
+        AllowedPattern: "[A-Za-z0-9]+"
+        ConstraintDescription: must start with Alphabet & Can be AlphaNumeric
+        
+    Environment:
+        AllowedValues: [dev,qa,staging,prod]
+        Default: dev
+        Description: The name of the Environment
+        Type: String
+        
+Resources:
+    ApacheELBSG:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            VpcId: !Ref VpcId
+            GroupDescription: ELB Security Group
+            SecurityGroupIngress:
+                - IpProtocol: tcp
+                  FromPort: 80
+                  ToPort: 80
+                  CidrIp: 0.0.0.0/0
+                  Description: Allow Traffic From Internet
+                - IpProtocol: tcp
+                  FromPort: 443
+                  ToPort: 443
+                  CidrIp: 0.0.0.0/0
+            Tags:
+                - Key: Name
+                  Value: !Sub '${Application}-appserver-elb-sg'
+
+    EC2IntanceSG:
+        Type: AWS::EC2::SecurityGroup    
+        Properties:
+            VpcId: !Ref VpcId
+            GroupDescription: Web Server Security Group
+            SecurityGroupIngress:
+                - FromPort: 80
+                  IpProtocol: tcp
+                  SourceSecurityGroupId: !Ref ApacheELBSG
+                  ToPort: 80
+                  Description: Allow SSH from Apache
+                - IpProtocol: tcp
+                  FromPort: 22
+                  ToPort: 22
+                  CidrIp: 0.0.0.0/0                                 
+            Tags:
+                - Key: Name
+                  Value: !Sub '${Application}-ec2instance-sg'
+
+    ApplicationLoadBalancer:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+            Name: !Sub '${Application}-${Environment}-alb'
+            Scheme: internet-facing
+            Type: application
+            IpAddressType: ipv4
+            LoadBalancerAttributes:
+                - Key: idle_timeout.timeout_seconds
+                  Value: 600
+            SecurityGroups: 
+                - !Ref ApacheELBSG
+            Subnets:
+                - !Ref PublicSubnet1
+                - !Ref PublicSubnet2
+                - !Ref PublicSubnet3
+
+    ALBListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            DefaultActions:
+                - TargetGroupArn: !Ref TargetGroup
+                  Type: forward
+            LoadBalancerArn: !Ref ApplicationLoadBalancer
+            Port: 80
+            Protocol: HTTP
+
+
+    TargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            HealthCheckIntervalSeconds: 30
+            HealthCheckProtocol: HTTP
+            HealthyThresholdCount: 3
+            HealthCheckPath: /index.html
+            Matcher:
+                HttpCode: 200
+            VpcId: !Ref VpcId
+            Port: 80
+            Protocol: HTTP
+            Targets:
+            - Id: !Ref EC2Instance
+              Port: 80
+
+    EC2Instance:
+        Type: 'AWS::EC2::Instance'
+        Properties:
+            InstanceType: !Ref InstanceTypeParameter
+            SecurityGroupIds:
+                - !Ref EC2IntanceSG
+            KeyName: !Ref KeyName
+            ImageId: ami-0851b76e8b1bce90b
+            SubnetId: subnet-0b1856771a3c2368d
+            Tags:
+                - Key: Name
+                  Value: Cloud Formation
+                - Key: Owner
+                  Value: Manash
+            UserData:
+                Fn::Base64: !Sub 
+                  |
+                  #!/bin/bash
+                  sudo apt update
+                  sudo apt install apache2 -y
+                  sudo ufw allow in "Apache Full"
+                  sudo systemctl restart apache2
+           
+Outputs:
+    AppELBDNS:
+        Description: InstanceId of the newly created EC2 instance
+        Value: !GetAtt [ApplicationLoadBalancer, DNSName]
